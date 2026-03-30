@@ -1,0 +1,28 @@
+# Python environment
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Application config
+.env
+
+# Cache and local data
+cache/
+
+# IDE/editor files
+.vscode/
+
+# Logs
+*.log
+
+# 
+data/
+scripts/
+
+# OS files
+.DS_Store
+Thumbs.db

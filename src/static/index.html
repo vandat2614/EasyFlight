@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Flight Search Agent</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+
+  <body>
+    <div class="app">
+      <div class="chat-panel" id="chatPanel">
+        <div class="chat-resize" id="chatResize"></div>
+
+        <div class="panel-header">
+          <h2>&#9992; Flight Assistant</h2>
+        </div>
+
+        <div class="chat-messages" id="chatMessages">
+          <div class="msg assistant">
+            Hello! I can help you find flights. Let me know where you want to
+            fly, your destination, and travel date!
+          </div>
+        </div>
+
+        <div class="chat-input">
+          <input
+            type="text"
+            id="userInput"
+            placeholder="e.g. Flights from Hanoi to Tokyo on Apr 15..."
+            autocomplete="off"
+          />
+          <button id="sendBtn" onclick="sendMessage()">Send</button>
+        </div>
+      </div>
+
+      <div class="flights-panel">
+        <div class="panel-header">
+          <h2>&#128203; Results</h2>
+          <span class="badge" id="flightCount" style="display: none">0</span>
+        </div>
+
+        <div class="flights-content" id="flightsContent">
+          <div class="flights-empty">
+            <div class="big-icon">&#9992;</div>
+            <p>Flight results will appear here</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- JS file -->
+    <script src="/static/script.js"></script>
+  </body>
+</html>

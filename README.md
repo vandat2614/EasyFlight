@@ -55,7 +55,7 @@ Flight/
 ## Setup
 
 ```bash
-git clone https://github.com/your-username/Flight.git
+git clone https://github.com/vandat2614/EasyFlight
 cd Flight
 python -m venv .venv
 .venv\Scripts\activate      # Linux: source .venv/bin/activate

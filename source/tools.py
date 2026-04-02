@@ -1,64 +1,8 @@
-
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
-from api.serpapi_flights import search_flights as _search
-
-
-def _clean_segment(raw: dict) -> dict:
-    """Transform a raw flight segment into a clean structure."""
-    dep = raw.get("departure_airport", {})
-    arr = raw.get("arrival_airport", {})
-    return {
-        "departure_airport": dep.get("id", ""),
-        "departure_airport_name": dep.get("name", ""),
-        "departure_time": dep.get("time", ""),
-        "arrival_airport": arr.get("id", ""),
-        "arrival_airport_name": arr.get("name", ""),
-        "arrival_time": arr.get("time", ""),
-        "duration": raw.get("duration", 0),
-        "airline": raw.get("airline", ""),
-        "airline_logo": raw.get("airline_logo", ""),
-        "flight_number": raw.get("flight_number", ""),
-        "airplane": raw.get("airplane", ""),
-        "travel_class": raw.get("travel_class", ""),
-        "legroom": raw.get("legroom", ""),
-        "amenities": raw.get("extensions", []),
-        "overnight": raw.get("overnight", False),
-        "often_delayed": raw.get("often_delayed_by_over_30_min", False),
-    }
-
-
-def _clean_layover(raw: dict) -> dict:
-    """Transform a raw layover into a clean structure."""
-    return {
-        "airport": raw.get("id", ""),
-        "airport_name": raw.get("name", ""),
-        "duration": raw.get("duration", 0),
-    }
-
-
-def _clean_flight(raw: dict) -> dict:
-    """Transform a raw flight offer into a clean structure."""
-    return {
-        "price": raw.get("price", 0),
-        "total_duration": raw.get("total_duration", 0),
-        "type": raw.get("type", ""),
-        "booking_token": raw.get("booking_token", ""),
-        "departure_token": raw.get("departure_token", ""),
-        "segments": [_clean_segment(s) for s in raw.get("flights", [])],
-        "layovers": [_clean_layover(l) for l in raw.get("layovers", [])],
-        "carbon_emissions": raw.get("carbon_emissions", {}),
-    }
-
-
-def _clean_response(raw: dict) -> list[dict]:
-    """Transform the raw API response into a flat list of flights."""
-    best = raw.get("best_flights", [])
-    other = raw.get("other_flights", [])
-    return [_clean_flight(f) for f in best + other]
+import os
+import json
+import requests
+from typing import Optional
+from source.utils import _generate_cache_key
 
 def search_flights(
     departure_id: str,
@@ -74,6 +18,8 @@ def search_flights(
     max_price: int | None = None,
     max_duration: int | None = None,
     bags: int = 0,
+    include_airlines: Optional[str] = None,
+    exclude_airlines: Optional[str] = None,
     outbound_times: str | None = None,
     return_times: str | None = None,
     layover_duration: str | None = None,
@@ -86,7 +32,7 @@ def search_flights(
     departure_token: str | None = None,
     booking_token: str | None = None,
 ) -> dict:
-
+    
     """
     Search Flights Tool
 
@@ -149,6 +95,12 @@ def search_flights(
 
         bags (int, optional):
             Number of checked bags. Default: 0.
+
+        include_airlines (str, optional):
+            Only show flights from these airlines (comma-separated IATA). Cannot be used with exclude_airlines.
+        
+        exclude_airlines (str, optional): 
+            Exclude flights from these airlines (comma-separated IATA). Cannot be used with include_airlines.
 
         outbound_times (str, optional):
             Outbound departure time range. Comma-separated hours.
@@ -240,79 +192,102 @@ def search_flights(
     """
 
 
-    raw = _search(
-        departure_id=departure_id,
-        arrival_id=arrival_id,
-        outbound_date=outbound_date,
-        return_date=return_date,
-        adults=adults,
-        children=children,
-        infants_in_seat=infants_in_seat,
-        infants_on_lap=infants_on_lap,
-        travel_class=travel_class,
-        stops=stops,
-        max_price=max_price,
-        max_duration=max_duration,
-        bags=bags,
-        outbound_times=outbound_times,
-        return_times=return_times,
-        layover_duration=layover_duration,
-        exclude_conns=exclude_conns,
-        sort_by=sort_by,
-        currency=currency,
-        gl=gl,
-        hl=hl,
-        show_hidden=show_hidden,
-        departure_token=departure_token,
-        booking_token=booking_token,
-    )
-    if raw is None:
-        return {"error": "API request failed. No flight data available.", "flights": []}
+    _BASE_URL = "https://serpapi.com/search"
+    SERP_API_KEY = os.environ["SERP_API_KEY"]
 
-    flights = _clean_response(raw)
-    # Filter out flights with no price data
-    flights = [f for f in flights if f.get("price", 0) > 0]
-    if not flights:
-        return {"error": "No flights found for this route/date.", "flights": []}
-
-    return {"error": None, "flights": flights}
-
-def _search_flights_web(last_search_result, **kwargs):
-    """Wrapper: stores full results for frontend, returns summary to AI."""
-    # Record tool call params
-    call_info = {k: v for k, v in kwargs.items() if v is not None and v != 0 and v != ""}
-    last_search_result["tool_calls"].append(call_info)
-
-    result = search_flights(**kwargs)
-    flights = result.get("flights", [])
-    error = result.get("error")
-
-    # Store full data for frontend
-    last_search_result["flights"] = flights
-
-    # If error or no flights, pass as-is so AI can retry
-    if error or not flights:
-        return {"error": error or "No flights found.", "found": 0}
-
-    # Build summary for AI (save context)
-    prices = [f["price"] for f in flights]
-    airlines = list(set(
-        seg["airline"]
-        for f in flights
-        for seg in f.get("segments", [])
-    ))
-    durations = [f["total_duration"] for f in flights]
-
-    summary = {
-        "found": len(flights),
-        "price_min": min(prices),
-        "price_max": max(prices),
-        "currency": kwargs.get("currency", "VND"),
-        "airlines": airlines,
-        "duration_min": min(durations),
-        "duration_max": max(durations),
-        "note": "Full flight details are displayed to the user in the right panel. "
-                "Summarize: how many flights found, price range, airlines. "
-                "Ask if they want to filter or adjust."
+    # --- 1. Build required params ---
+    params = {
+        "engine": "google_flights",
+        "departure_id": departure_id,
+        "arrival_id": arrival_id,
+        "outbound_date": outbound_date,
+        "type": 2 if return_date is None else 1,
+        "adults": adults,
+        "travel_class": travel_class,
+        "stops": stops,
+        "sort_by": sort_by,
+        "currency": currency,
+        "gl": gl,
+        "hl": hl,
+        "api_key": SERP_API_KEY,
     }
-    return summary
+
+    # --- 2. Add optional params (only when set) ---
+    optional = {
+        "return_date": return_date,
+        "children": children or None,
+        "infants_in_seat": infants_in_seat or None,
+        "infants_on_lap": infants_on_lap or None,
+        "max_price": max_price,
+        "max_duration": max_duration,
+        "bags": bags or None,
+        "include_airlines": include_airlines,
+        "exclude_airlines": exclude_airlines,
+        "outbound_times": outbound_times,
+        "return_times": return_times,
+        "layover_duration": layover_duration,
+        "exclude_conns": exclude_conns,
+        "departure_token": departure_token,
+        "booking_token": booking_token,
+    }
+
+    for k, v in optional.items():
+        if v is not None:
+            params[k] = v
+
+    # Boolean flags (only send when True)
+    if show_hidden:
+        params["show_hidden"] = "true"
+
+    # --- 3. Call API ---
+    print(f"[SEARCH] {departure_id}->{arrival_id} {outbound_date}")
+    try:
+        response = requests.get(_BASE_URL, params=params)
+        response.raise_for_status()
+        raw_data = response.json()
+    except Exception as e:
+        raise e
+
+    return raw_data
+
+def search_flights_wrapper(**kwargs):
+
+    try:
+        response = search_flights(**kwargs)
+    except Exception as e:
+
+        error = str(e)
+        if 'http' in error:
+            try:
+                url = ':'.join(error.split(':')[-2:])
+                error = requests.get(url).json()['error']
+            except:
+                pass
+
+        return json.dumps({
+            "status": "error", 
+            "message": error
+        })
+    
+    
+    # flights = _clean_response(response)
+    # if not flights:
+    #     return json.dumps({
+    #         "status": "error", 
+    #         "message": "No flights found"
+    #     })    
+
+    cache_key = _generate_cache_key(kwargs)
+    cache_path = os.path.join('cache', f'{cache_key}.json')
+    if not os.path.exists('cache'):
+        os.makedirs('cache', exist_ok=True)
+
+    with open(file=cache_path, mode='w', encoding='utf-8') as file:
+        json.dump(response, file, ensure_ascii=False, indent=4)
+    print(f'[CACHE] {cache_path}')
+
+    return json.dumps({
+        "status": "success",
+        "cache_key": cache_key
+    })
+

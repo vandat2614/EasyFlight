@@ -19,7 +19,12 @@ cache/
 # Logs
 *.log
 
-# 
+# Notebooks
+*.ipynb
+
+# Legacy folders
+api/
+src/
 data/
 scripts/
 

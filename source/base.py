@@ -28,6 +28,11 @@ class SearchFlightsInput(BaseModel):
     departure_token: Optional[str] = Field(default=None, description="Token for return flights.")
     booking_token: Optional[str] = Field(default=None, description="Token for booking options.")
 
+class SearchAgentInput(BaseModel):
+    query: str = Field(
+        description="A plain, natural language string containing all the flight requirements (e.g., origin, destination, dates, cabin class, max price). Example: 'Please search for flights from Hanoi to Ho Chi Minh City on 2023-11-20 for 2 adults in Business class under 5 million VND.'"
+    )
+
 class ChatRequest(BaseModel):
     message: str
     history: list[dict] = []

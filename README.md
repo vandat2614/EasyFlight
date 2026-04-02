@@ -1,65 +1,90 @@
 # Flight Search Agent
 
-Search for flights the way you talk. Just describe your travel plans in natural language—origin, destination, dates, and preferences—and get instant flight options with prices, airlines, and schedules all at once.
+Search for flights the way you talk. Describe your travel plans in natural language and get instant flight options with prices, airlines, and schedules.
+
+## Demo
+
+![Demo](assets/demo.gif)
 
 ## Features
 
-- Chat interface with prompt-driven flight search
-- Flight results shown in a dedicated panel with real-time updates
-- Get instant pricing and availability across multiple airlines and routes
-- Filter by price, duration, stops, airline preferences, and more
-- Easy-to-read results panel displaying side-by-side flight comparisons
+- Multi-agent architecture: a main conversational agent delegates to a specialized search agent
+- Streaming chat responses via SSE (Server-Sent Events)
+- Flight results panel with Google Flights-style cards
+- Real-time pricing and availability across multiple airlines
+- Filter by price, duration, stops, cabin class, airlines, and more
+- "Select flight" redirects to the airline's booking page
 
-## Project structure
+## Architecture
+
+```
+User <-> Main Agent (Travel Agent persona)
+              |
+              |-- calls search_flights tool
+              |
+         Search Agent (Parameter parser)
+              |
+              |-- calls SerpAPI Google Flights
+              |
+         Cache (JSON files)
+```
+
+- **Main Agent**: Friendly travel agent that gathers requirements and presents results
+- **Search Agent**: Parses natural language into structured API parameters, handles fallbacks
+- Both agents use Groq LLM (`gpt-oss-120b`) via LangGraph's `create_react_agent`
+
+## Project Structure
 
 ```
 Flight/
-├── src/
-│   ├── app.py                  # FastAPI server + LangChain agent wiring
-│   ├── base.py                 # Pydantic request/response schemas
-│   ├── prompt.py               # System prompt template for the agent
-│   ├── tools.py                # Flight search wrapper + flight data cleaning
-│   └── static/                 # Static frontend assets (HTML/CSS/JS)
-├── api/
-│   └── serpapi_flights.py      # Flight search API integration
-├── .env                        # API key configuration (gitignored)
-├── .venv/                      # Python virtual environment
-├── README.md
-└── requirements.txt
+├── source/
+│   ├── app.py              # FastAPI server, SSE streaming, booking endpoint
+│   ├── main_agent.py       # Main conversational agent
+│   ├── search_agent.py     # Search agent (parameter extraction + API call)
+│   ├── tools.py            # SerpAPI Google Flights integration + caching
+│   ├── prompts.py          # System prompts for both agents
+│   ├── base.py             # Pydantic schemas
+│   ├── utils.py            # Cache key generation + response cleaning
+│   └── static/             # Frontend (HTML/CSS/JS)
+├── cache/                  # Cached API responses (gitignored)
+├── .env                    # API keys (gitignored)
+├── requirements.txt
+└── README.md
 ```
 
-## Setup & Run
+## Setup
 
-```powershell
+```bash
 git clone https://github.com/your-username/Flight.git
 cd Flight
 python -m venv .venv
-venv\Scripts\activate          # On Linux: source venv/bin/activate
+.venv\Scripts\activate      # Linux: source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
 Create a `.env` file in the project root:
 
-```text
-SERPAPI_KEY=your_serpapi_api_key
-GROQ_API_KEY=your_groq_api_key
+```
+SERP_API_KEY=your_serpapi_key
+GROQ_API_KEY=your_groq_key
 ```
 
 Get API keys from:
 - SerpApi: https://serpapi.com
 - Groq: https://console.groq.com
 
-Start the server:
+## Run
 
-```powershell
-python src/app.py
+```bash
+python -m source.app
 ```
 
-Open your browser at `http://127.0.0.1:8000/`
+Open `http://localhost:8001`
 
-## Tech stack
+## Tech Stack
 
 - Python 3.11+
 - FastAPI + Uvicorn
-- LangChain + Groq LLM
-- SerpApi / Google Flights integration
+- LangChain + LangGraph
+- Groq LLM
+- SerpApi (Google Flights)
